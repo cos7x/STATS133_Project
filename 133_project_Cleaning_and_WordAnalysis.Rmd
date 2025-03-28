@@ -1,0 +1,379 @@
+---
+title: "133_project_new"
+author: "Xianya Fu"
+date: "2025-03-04"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tm)
+library(pdftools)
+library(stringr)
+library(dplyr)
+library(textstem)
+library(ggplot2)
+library(quanteda)
+library(tidytext)
+library(dplyr)
+library(syuzhet)
+library(ggplot2)
+library(textdata)
+library(tm)
+library(topicmodels)
+library(tidyverse)
+library(tibble)
+library(scales)
+library(textstem)
+```
+
+# For the big corpus & cleaning
+```{r}
+files <- list.files("E:/UCLA/2025Winter/STATS 133/133_Project/text", full.names = TRUE)
+setwd("E:/UCLA/2025Winter/STATS 133/133_Project/text")
+corp <- VCorpus(URISource(files), readerControl = list(reader = readPDF))
+
+toSpace <- content_transformer(function(x, pattern) gsub(pattern, " ", x))
+corp <- tm_map(corp, toSpace, "\\[")
+corp <- tm_map(corp, toSpace, "–")
+corp <- tm_map(corp, toSpace, "\\]")
+corp <- tm_map(corp, content_transformer(tolower))
+corp <- tm_map(corp, removeNumbers)
+# 4.Remove Punctuation
+corp <- tm_map(corp, removePunctuation)
+# 5.Remove English Stop Words
+corp <- tm_map(corp, removeWords, stopwords("english"))
+# 6.Remove Own Stop Words
+corp <- tm_map(corp, removeWords, c("judy", "bogo", "nick", "leodore", "hopps", "zpd",
+                                    "flash", "zazu", "scar", "mufasa", "simba", "nala",
+                                    "rafiki", "sarabi", "timon", "pumbaa", "hyenas","charles",
+                                    "carl", "ellie", "russell", "kevin", "muntz", "dug", "s",
+                                    "banzai", "cont", "carls","shenzi","alpha","stu","ed",
+                                    "bellwether", "page"))
+# 7.Strip Whitespace
+corp <- tm_map(corp, stripWhitespace)
+# Stemming
+corp <- tm_map(corp, content_transformer(lemmatize_words))
+corp <- tm_map(corp, content_transformer(lemmatize_strings))
+inspect(corp)
+```
+
+```{r}
+get_text <- function(corpus_obj) {
+  text <- sapply(corpus_obj, as.character)
+  text <- paste(text, collapse = " ")
+  return(text)
+}
+
+lion_text <- get_text(corp[[1]])
+up_text <- get_text(corp[[2]])
+zoo_text <- get_text(corp[[3]])
+
+split_scenes <- function(script_text) {
+  #scenes <- unlist(str_split(script_text, "(?=EXT\\.|INT\\.)"))
+  #scenes <- scenes[nchar(scenes) > 0]
+  #scene_labels <- str_extract(scenes, "^\\b(EXT\\.|INT\\.)")  
+  #scenes_cleaned <- str_replace(scenes, "^\\b(EXT\\.|INT\\.)\\s*", "")
+  
+  scenes <- unlist(str_split(script_text, "(?=\\b(ext|int)\\s)"))
+  scenes <- scenes[nchar(scenes) > 0]
+  scene_labels <- str_extract(scenes, "^\\b(ext|int)\\b")  
+  scenes_cleaned <- str_replace(scenes, "^\\b(ext|int)\\s*", "")
+
+  scene_df <- tibble(scene_id = seq_along(scenes),
+                     scene_label = scene_labels,
+                     text = str_trim(scenes_cleaned))
+  
+  return(scene_df)
+}
+
+lion_scenes <- split_scenes(lion_text)
+up_scenes <- split_scenes(up_text)
+zoo_scenes <- split_scenes(zoo_text)
+```
+
+# For tidy tibble:
+```{r}
+tidy_lion <- lion_scenes %>% unnest_tokens(word, text) %>%
+  anti_join(stop_words, by = "word") %>% drop_na() %>% mutate(movie = "Lion_king")
+tidy_up <- up_scenes %>% unnest_tokens(word, text) %>%
+  anti_join(stop_words, by = "word") %>% drop_na() %>% mutate(movie = "Up")
+tidy_zoo <- zoo_scenes %>% unnest_tokens(word, text) %>%
+  anti_join(stop_words, by = "word") %>% drop_na() %>% mutate(movie = "Zootopia")
+```
+
+# For seperate 3 movies corpus:
+```{r}
+corp.lion <- Corpus(URISource("E:/UCLA/2025Winter/STATS 133/133_Project/text/lion_king.pdf"),
+readerControl = list(reader = readPDF))
+corp.up <- Corpus(URISource("E:/UCLA/2025Winter/STATS 133/133_Project/text/up.pdf"),
+readerControl = list(reader = readPDF))
+corp.zoo <- Corpus(URISource("E:/UCLA/2025Winter/STATS 133/133_Project/text/zootopia.pdf"),
+readerControl = list(reader = readPDF))
+```
+
+```{r}
+toSpace <- content_transformer(function(x, pattern) gsub(pattern, " ", x))
+corp.lion <- tm_map(corp.lion, toSpace, "\\[")
+corp.lion <- tm_map(corp.lion, toSpace, "–")
+corp.lion <- tm_map(corp.lion, toSpace, "\\]")
+corp.lion <- tm_map(corp.lion, content_transformer(tolower))
+corp.lion <- tm_map(corp.lion, removeNumbers)
+# 4.Remove Punctuation
+corp.lion <- tm_map(corp.lion, removePunctuation)
+# 5.Remove English Stop Words
+corp.lion <- tm_map(corp.lion, removeWords, stopwords("english"))
+# 6.Remove Own Stop Words
+corp.lion <- tm_map(corp.lion, removeWords, c("judy", "bogo", "nick", "leodore", "hopps",
+                                              "zpd", "flash", "zazu", "scar", "mufasa",
+                                              "simba", "nala", "rafiki", "sarabi", "timon",
+                                              "pumbaa", "hyenas","charles", "carl", "ellie",
+                                              "russell", "kevin", "muntz", "dug", "s", "ext",
+                                              "int", "banzai", "bellwether", "page"))
+# 7.Strip Whitespace
+corp.lion <- tm_map(corp.lion, stripWhitespace)
+# Stemming
+corp.lion <- tm_map(corp.lion, content_transformer(lemmatize_words))
+corp.lion <- tm_map(corp.lion, content_transformer(lemmatize_strings))
+inspect(corp.lion)
+```
+
+```{r}
+toSpace <- content_transformer(function(x, pattern) gsub(pattern, " ", x))
+corp.up <- tm_map(corp.up, toSpace, "\\[")
+corp.up <- tm_map(corp.up, toSpace, "–")
+corp.up <- tm_map(corp.up, toSpace, "\\]")
+corp.up <- tm_map(corp.up, content_transformer(tolower))
+corp.up <- tm_map(corp.up, removeNumbers)
+# 4.Remove Punctuation
+corp.up <- tm_map(corp.up, removePunctuation)
+# 5.Remove English Stop Words
+corp.up <- tm_map(corp.up, removeWords, stopwords("english"))
+# 6.Remove Own Stop Words
+corp.up <- tm_map(corp.up, removeWords, c("judy", "bogo", "nick", "leodore", "hopps",
+                                              "zpd", "flash", "zazu", "scar", "mufasa",
+                                              "simba", "nala", "rafiki", "sarabi", "timon",
+                                              "pumbaa", "hyenas","charles", "carl", "ellie",
+                                              "russell", "kevin", "muntz", "dug", "s", "ext",
+                                              "int", "banzai","bellwether", "page"))
+# 7.Strip Whitespace
+corp.up <- tm_map(corp.up, stripWhitespace)
+# Stemming
+corp.up <- tm_map(corp.up, content_transformer(lemmatize_words))
+corp.up <- tm_map(corp.up, content_transformer(lemmatize_strings))
+inspect(corp.up)
+```
+
+```{r}
+toSpace <- content_transformer(function(x, pattern) gsub(pattern, " ", x))
+corp.zoo <- tm_map(corp.zoo, toSpace, "\\[")
+corp.zoo <- tm_map(corp.zoo, toSpace, "–")
+corp.zoo <- tm_map(corp.zoo, toSpace, "\\]")
+corp.zoo <- tm_map(corp.zoo, content_transformer(tolower))
+corp.zoo <- tm_map(corp.zoo, removeNumbers)
+# 4.Remove Punctuation
+corp.zoo <- tm_map(corp.zoo, removePunctuation)
+# 5.Remove English Stop Words
+corp.zoo <- tm_map(corp.zoo, removeWords, stopwords("english"))
+# 6.Remove Own Stop Words
+corp.zoo <- tm_map(corp.zoo, removeWords, c("judy", "bogo", "nick", "leodore", "hopps",
+                                              "zpd", "flash", "zazu", "scar", "mufasa",
+                                              "simba", "nala", "rafiki", "sarabi", "timon",
+                                              "pumbaa", "hyenas","charles", "carl", "ellie",
+                                              "russell", "kevin", "muntz", "dug", "s", "ext",
+                                              "int", "banzai", "bellwether", "page"))
+# 7.Strip Whitespace
+corp.zoo <- tm_map(corp.zoo, stripWhitespace)
+# Stemming
+corp.zoo <- tm_map(corp.zoo, content_transformer(lemmatize_words))
+corp.zoo <- tm_map(corp.zoo, content_transformer(lemmatize_strings))
+inspect(corp.zoo)
+```
+
+```{r}
+corp <- tm_map(corp, removeWords, c("judy", "bogo", "nick", "leodore", "hopps", "zpd",
+                                    "flash", "zazu", "scar", "mufasa", "simba", "nala",
+                                    "rafiki", "sarabi", "timon", "pumbaa", "hyenas","charles",
+                                    "carl", "ellie", "russell", "kevin", "muntz", "dug", "s",
+                                    "banzai","ext", "int","carls", "cont", "just", "can",
+                                    "bellwether", "page"))
+dtm <- DocumentTermMatrix(corp)
+dtm <- removeSparseTerms(dtm, 0.90)
+dtm
+```
+
+```{r}
+png("correlation_plot.png", width = 800, height = 600)
+plot(dtm, terms = findFreqTerms(dtm, lowfreq = 95), corThreshold = 0.9, main = "Correlation Plot of Frequent Terms")
+dev.off()
+```
+
+```{r}
+# Load necessary library
+library(ggplot2)
+library(dplyr)
+
+# Create and save the first plot with increased font size
+p1 <- tidy_lion %>%
+  count(word, sort = TRUE) %>%
+  top_n(15) %>%
+  mutate(word = reorder(word, n)) %>%
+  ggplot(aes(word, n)) +
+  geom_col(fill = "gold") +
+  xlab(NULL) +
+  ggtitle("Lion King Term Frequency") +
+  coord_flip() +
+  theme(
+    plot.title = element_text(size = 25, face = "bold"),
+    axis.text = element_text(size = 30),
+  )
+
+ggsave("tidy_lion_plot.png", plot = p1, width = 7, height = 10, dpi = 300)
+
+# Create and save the second plot with increased font size
+p2 <- tidy_up %>%
+  count(word, sort = TRUE) %>%
+  top_n(15) %>%
+  mutate(word = reorder(word, n)) %>%
+  ggplot(aes(word, n)) +
+  geom_col(fill = "blue") +
+  xlab(NULL) +
+  ggtitle("Up Term Frequency") +
+  coord_flip() +
+  theme(
+    plot.title = element_text(size = 25, face = "bold"),
+    axis.text = element_text(size = 30),
+  )
+
+ggsave("tidy_up_plot.png", plot = p2, width = 7, height = 10, dpi = 300)
+
+# Create and save the third plot with increased font size
+p3 <- tidy_zoo %>%
+  count(word, sort = TRUE) %>%
+  top_n(15) %>%
+  mutate(word = reorder(word, n)) %>%
+  ggplot(aes(word, n)) +
+  geom_col(fill = "red") +
+  xlab(NULL) +
+  ggtitle("Zootopia Term Frequency") +
+  coord_flip() +
+  theme(
+    plot.title = element_text(size = 25, face = "bold"),
+    axis.text = element_text(size = 30),
+  )
+
+ggsave("tidy_zoo_plot.png", plot = p3, width = 7, height = 10, dpi = 300)
+```
+
+```{r}
+tidy_lion %>% count(word, sort = TRUE) %>% top_n(15) %>%
+  mutate(word = reorder(word, n)) %>%
+  ggplot(aes(word, n)) + geom_col(fill = "gold") + xlab(NULL) + coord_flip()
+tidy_up %>% count(word, sort = TRUE) %>% top_n(15) %>%
+  mutate(word = reorder(word, n)) %>%
+  ggplot(aes(word, n)) + geom_col(fill = "blue") + xlab(NULL) + coord_flip()
+tidy_zoo %>% count(word, sort = TRUE) %>% top_n(15) %>%
+  mutate(word = reorder(word, n)) %>%
+  ggplot(aes(word, n)) + geom_col(fill = "red") + xlab(NULL) + coord_flip()
+```
+
+```{r}
+tidy_lion %>% count(scene_id, word, sort = TRUE) %>% bind_tf_idf(word, scene_id, n) %>%
+  arrange(desc(tf_idf))
+tidy_up %>% count(scene_id, word, sort = TRUE) %>% bind_tf_idf(word, scene_id, n) %>%
+  arrange(desc(tf_idf))
+tidy_zoo %>% count(scene_id, word, sort = TRUE) %>% bind_tf_idf(word, scene_id, n) %>%
+  arrange(desc(tf_idf))
+```
+
+
+```{r}
+all_data <- bind_rows(tidy_lion, tidy_up, tidy_zoo) %>%
+  mutate(word = str_extract(word, "[a-z]+")) %>%
+  count(movie, word) %>%
+  group_by(movie) %>%
+  mutate(proportion = n / sum(n)) %>%
+  select(-n)
+
+create_comb <- function(movie1, movie2) {
+  comb <- all_data %>%
+    filter(movie %in% c(movie1, movie2)) %>%
+    spread(movie, proportion) %>%  # make movie 1 be a single column
+    gather(movie, proportion, movie1)
+  return(comb)
+}
+
+comb_lion_up <- create_comb("Lion_king", "Up")
+comb_lion_zoo <- create_comb("Lion_king", "Zootopia")
+comb_up_zoo <- create_comb("Up", "Zootopia")
+
+head(comb_lion_up)
+head(comb_lion_zoo)
+head(comb_up_zoo)
+```
+
+```{r}
+bind_rows(tidy_lion, tidy_up, tidy_zoo) %>% count(movie, word, sort = TRUE) %>%
+  bind_tf_idf(word, movie, n) %>% arrange(desc(tf_idf))
+```
+
+```{r}
+p4 <- ggplot(comb_lion_up, aes(x = proportion, y = `Up`, color = abs(`Up` -
+proportion))) + geom_abline(color = "gray40", lty = 2) +
+geom_jitter(alpha = 0.1, size = 2.5, width = 0.3, height = 0.3) +
+geom_text(aes(label = word), check_overlap = TRUE, vjust = 1.5) +
+scale_x_log10(labels = percent_format()) +
+scale_y_log10(labels = percent_format()) +
+scale_color_gradient(limits = c(0, 0.001), low = "darkslategray4", high = "gray75") +
+facet_wrap(~movie, ncol = 2) +
+theme(legend.position="none") +
+labs(y = "Up", x = NULL)
+
+ggsave("lion vs. up.png", plot = p4, width = 6, height = 4, dpi = 300)
+```
+
+```{r}
+p5 <- ggplot(comb_lion_zoo, aes(x = proportion, y = `Zootopia`, color = abs(`Zootopia` -
+proportion))) + geom_abline(color = "gray40", lty = 2) +
+geom_jitter(alpha = 0.1, size = 2.5, width = 0.3, height = 0.3) +
+geom_text(aes(label = word), check_overlap = TRUE, vjust = 1.5) +
+scale_x_log10(labels = percent_format()) +
+scale_y_log10(labels = percent_format()) +
+scale_color_gradient(limits = c(0, 0.001), low = "darkslategray4", high = "gray75") +
+facet_wrap(~movie, ncol = 2) +
+theme(legend.position="none") +
+labs(y = "Zootopia", x = NULL)
+ggsave("lion vs. zoo.png", plot = p5, width = 6, height = 4, dpi = 300)
+```
+
+```{r}
+p6 <- ggplot(comb_up_zoo, aes(x = proportion, y = `Zootopia`, color = abs(`Zootopia` -
+proportion))) + geom_abline(color = "gray40", lty = 2) +
+geom_jitter(alpha = 0.1, size = 2.5, width = 0.3, height = 0.3) +
+geom_text(aes(label = word), check_overlap = TRUE, vjust = 1.5) +
+scale_x_log10(labels = percent_format()) +
+scale_y_log10(labels = percent_format()) +
+scale_color_gradient(limits = c(0, 0.001), low = "darkslategray4", high = "gray75") +
+facet_wrap(~movie, ncol = 2) +
+theme(legend.position="none") +
+labs(y = "Zootopia", x = NULL)
+ggsave("up vs. zoo.png", plot = p6, width = 6, height = 4, dpi = 300)
+```
+
+```{r}
+cor.test(data = comb_lion_up[comb_lion_up$movie == "Lion_king",], ~ proportion + `Up`)
+cor.test(data = comb_up_zoo[comb_up_zoo$movie == "Up",], ~ proportion + `Zootopia`)
+cor.test(data = comb_lion_zoo[comb_lion_zoo$movie == "Lion_king",], ~ proportion + `Zootopia`)
+```
+
+
+
+
+
+
+
+
+
